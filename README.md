@@ -1,167 +1,209 @@
 # fermat-conv-hardware
 
-Hardware implementation of an accelerator for **Fermat modulus convolution** targeting high-performance polynomial multiplication for **Post-Quantum Cryptography (PQC)** and **Fully Homomorphic Encryption (FHE)**.
+Hardware implementation of a **Fermat Modulus Convolution Accelerator** for high-performance polynomial multiplication targeting **Post-Quantum Cryptography (PQC)** and **Fully Homomorphic Encryption (FHE)**.
+
+The project begins with a Python reference model that serves as the functional golden model for the eventual RTL implementation.
 
 ---
 
-# Step 1: Python Reference Model
+# Overview
 
-Before implementing the hardware, we first develop a cycle-independent Python model. This serves as the functional golden reference for the RTL implementation.
+Polynomial multiplication is the computational bottleneck in many lattice-based cryptographic schemes such as ML-KEM (Kyber), HAWK, and several FHE schemes.
 
-## Goals
+This project implements a hardware-friendly polynomial multiplication pipeline over the Fermat modulus
 
-* Simulate polynomial multiplication over the Fermat modulus.
-* Match the computation flow intended for hardware.
-* Keep the implementation modular and object-oriented.
-* Reuse the same hierarchy in the RTL design.
+```
+q = 65537 = 2¹⁶ + 1
+```
 
----
-
-## Fermat Modulus Parameters
-
-| Parameter | Value |
-|-----------|-------|
-| Modulus | **65537 = 2¹⁶ + 1** |
-| Polynomial Size | Configurable (up to 8192) |
-| Primitive Generator | **3** |
-| Maximum Direct Power-of-Two NTT | 32 |
-| Larger NTT Sizes | Constructed using Mixed-Radix / Radix-32 decomposition |
+whose special arithmetic properties allow modular reduction using only bit operations and additions/subtractions.
 
 ---
 
-## Overall Flow
+# Current Pipeline
 
 ```mermaid
 flowchart LR
 
-A[Input Polynomial A]
-B[Input Polynomial B]
+A[Polynomial A]
+B[Polynomial B]
 
-A --> C[Preprocessing]
-B --> C
+A --> C[Preprocess]
+B --> D[Preprocess]
 
-C --> D[Forward NTT]
+C --> E[Forward NTT]
+D --> F[Forward NTT]
 
-D --> E[Pointwise Multiplication]
+E --> G[Pointwise Multiplication]
+F --> G
 
-E --> F[Inverse NTT]
+G --> H[Inverse NTT]
 
-F --> G[Postprocessing]
+H --> I[Postprocess]
 
-G --> H[Output Polynomial]
+I --> J[Output Polynomial]
 ```
 
 ---
 
-## Software Architecture
+# Software Architecture
 
-The Python implementation mirrors the planned RTL hierarchy.
+The software mirrors the intended RTL hierarchy.
 
 ```text
 Polynomial Multiplier
 │
 ├── Polynomial
-├── Preprocessor
-├── NTT / INTT
+│
+├── Twiddle Generator
+│
+├── NTT
 │   ├── Stage
-│   │   ├── Butterfly
-│   │   └── Twiddle Memory
-│   └── Radix Decomposition
-├── Postprocessor
+│   │   └── Radix-2 Butterfly
+│   └── Twiddle Memory
+│
+├── Pointwise Multiplier
+│
+├── Inverse NTT
+│
 └── Modular Arithmetic
 ```
 
----
-
-## Planned Components
-
-| Component | Purpose |
-|----------|---------|
-| Polynomial | Stores polynomial coefficients |
-| Twiddle Generator | Generates all NTT and preprocessing twiddle tables |
-| Modular Arithmetic | Fast Fermat modular arithmetic |
-| Butterfly | Performs one radix-2 butterfly |
-| Stage | Executes all butterflies within one stage |
-| NTT | Forward transform |
-| INTT | Inverse transform |
-| Preprocessor | Performs negacyclic preprocessing |
-| Postprocessor | Performs inverse preprocessing |
+Every software component is intended to directly map to a future RTL module.
 
 ---
 
-## Butterfly Operation
+# Implemented Modules
 
-Each butterfly receives
-
-* Coefficient **A**
-* Coefficient **B**
-* Twiddle Factor **W**
-
-and computes
-
-```text
-A' = A + B × W
-B' = A - B × W
-```
-
-All arithmetic is performed modulo **65537**.
+| Module | Status |
+|---------|:------:|
+| Polynomial | ✅ |
+| Modular Arithmetic | ✅ |
+| Radix-2 Butterfly | ✅ |
+| Stage Scheduler | ✅ |
+| Twiddle Generator | ✅ |
+| Twiddle Memory | ✅ |
+| Forward NTT | ✅ |
+| Inverse NTT | ✅ |
+| Polynomial Multiplication Pipeline | ✅ |
+| Naive Golden Reference | ✅ |
 
 ---
 
-## Twiddle Factor Generation
+# Fermat Modulus
 
-The multiplicative group of
+The modulus used throughout the project is
 
-```text
-F65537
+```
+65537 = 2¹⁶ + 1
 ```
 
-contains **65536** non-zero elements.
+which satisfies
 
-The primitive generator
-
-```text
-g = 3
 ```
-
-generates every non-zero element exactly once.
-
-A primitive N-th root of unity is computed as
-
-```text
-ωN = g^((65536)/N)
-```
-
-The Python model generates four twiddle tables:
-
-| Table | Purpose |
-|-------|---------|
-| Forward NTT | Butterfly twiddles |
-| Inverse NTT | INTT butterflies |
-| Preprocessing | ω₂Nⁱ |
-| Postprocessing | ω₂N⁻ⁱ |
-
----
-
-## Power-of-Two Twiddle Optimization
-
-The Fermat modulus satisfies
-
-```text
 2¹⁶ ≡ -1 (mod 65537)
-```
 
-which implies
-
-```text
 2³² ≡ 1 (mod 65537)
 ```
 
-Therefore, **2 is a primitive 32nd root of unity**.
+This enables efficient modular reduction.
 
-This allows every multiplication by
+Instead of
 
-```text
+```
+x % 65537
+```
+
+the reduction is performed as
+
+```
+x = x_low + 2¹⁶ x_high
+
+↓
+
+x mod 65537
+
+=
+
+x_low - x_high
+```
+
+followed by a small correction if necessary.
+
+No integer division is required.
+
+---
+
+# Twiddle Factors
+
+Twiddle factors are generated using the primitive generator
+
+```
+g = 3
+```
+
+where
+
+```
+ωN = g^((65536)/N)
+```
+
+The software currently generates
+
+- Forward NTT twiddles
+- Inverse NTT twiddles
+- Preprocessing twiddles
+- Postprocessing twiddles
+
+and stores them in stage-wise twiddle memories.
+
+---
+
+# Current NTT Architecture
+
+The current implementation is a standard **radix-2 Cooley-Tukey NTT**.
+
+```
+NTT
+
+↓
+
+Stage 0
+
+↓
+
+Stage 1
+
+↓
+
+Stage 2
+
+↓
+
+...
+
+↓
+
+Stage log₂(N)-1
+```
+
+Each stage consists entirely of radix-2 butterflies.
+
+---
+
+# Power-of-Two Optimization
+
+The Fermat modulus provides a unique optimization.
+
+Since
+
+```
+2³² ≡ 1 (mod 65537)
+```
+
+multiplication by
+
+```
 1
 2
 4
@@ -170,99 +212,122 @@ This allows every multiplication by
 2³¹
 ```
 
-to be implemented using cyclic shifts instead of modular multipliers.
+can be replaced by cyclic shifts instead of modular multiplication.
 
-For transforms larger than 32 points, Mixed-Radix decomposition is used. The internal 32-point sub-NTTs use shift-based twiddles, while the merge stages require general twiddle factors generated from the primitive generator.
-
----
-
-## Fermat Modular Reduction
-
-Instead of using expensive integer division,
-
-```text
-x mod (2¹⁶ + 1)
-```
-
-is computed using
-
-```text
-x = xlow + 2¹⁶ xhigh
-
-↓
-
-x mod 65537
-
-=
-
-xlow - xhigh
-```
-
-followed by a small correction if necessary.
-
-This reduction is used throughout the simulator and directly maps to the intended hardware implementation.
+This optimization is currently being integrated into the butterfly datapath.
 
 ---
 
-## Negacyclic Preprocessing
+# Negacyclic Convolution
 
-The polynomial multiplication target ring is
+The accelerator computes multiplication over
 
-```text
+```
 Zq[x] / (xᴺ + 1)
 ```
 
-A standard NTT naturally computes multiplication over
+using
 
-```text
-Zq[x] / (xᴺ - 1)
-```
+- preprocessing
+- forward NTT
+- pointwise multiplication
+- inverse NTT
+- postprocessing
 
-Therefore, preprocessing multiplies coefficient *i* by
-
-```text
-ω₂Nⁱ
-```
-
-before the Forward NTT.
-
-After the INTT, postprocessing multiplies coefficient *i* by
-
-```text
-ω₂N⁻ⁱ
-```
-
-to recover the correct negacyclic convolution.
+The Python implementation includes a naive schoolbook multiplier with negacyclic reduction, which acts as the golden reference for validating the NTT pipeline.
 
 ---
 
-## Hardware Considerations Reflected in Python
+# Verification
 
-Although the Python model is functional rather than cycle-accurate, it mirrors the intended RTL architecture.
+The project includes two independent implementations.
 
-* Object-oriented hierarchy matching RTL modules
-* Stage-wise execution
-* Explicit butterfly objects
-* Configurable transform sizes
-* Mixed-radix decomposition
-* Twiddle memory abstraction
-* Fermat modular reduction
-* Power-of-two shift optimization
+### NTT Pipeline
+
+```
+Polynomial
+
+↓
+
+Preprocess
+
+↓
+
+Forward NTT
+
+↓
+
+Pointwise Multiply
+
+↓
+
+Inverse NTT
+
+↓
+
+Postprocess
+```
+
+### Golden Reference
+
+```
+Polynomial
+
+↓
+
+Schoolbook O(N²) Multiplication
+
+↓
+
+Negacyclic Reduction
+```
+
+Both outputs are compared coefficient-by-coefficient to verify correctness.
 
 ---
 
-## Current Progress
+# Repository Structure
 
-- [x] Polynomial class
-- [x] Fermat modular arithmetic
-- [ ] Twiddle generation
-- [ ] Preprocessor
-- [ ] Butterfly
-- [ ] Stage
-- [ ] Forward NTT
-- [ ] Pointwise multiplication
-- [ ] Inverse NTT
-- [ ] Postprocessor
-- [ ] Polynomial multiplication
-- [ ] Verification against naive multiplication
-- [ ] Hardware RTL implementation
+```
+software/
+│
+├── butterfly.py
+├── modular_arithmetic.py
+├── ntt.py
+├── polynomial.py
+├── polynomial_multiplier.py
+├── stage.py
+└── twiddle.py
+
+tests/
+│
+└── pipeline_test.py
+```
+
+---
+
+# Current Status
+
+- ✅ Fermat modular arithmetic
+- ✅ Radix-2 butterfly implementation
+- ✅ Stage execution engine
+- ✅ Twiddle generation
+- ✅ Twiddle memory abstraction
+- ✅ Forward NTT
+- ✅ Inverse NTT
+- ✅ Complete polynomial multiplication pipeline
+- ✅ Naive golden reference
+- ✅ Pipeline verification framework
+
+---
+
+# Future Work
+
+- [ ] Power-of-two shift-based butterfly optimization
+- [ ] Radix-32 fused stage implementation
+- [ ] Mixed-radix decomposition
+- [ ] Bit-reversed twiddle storage
+- [ ] Cycle-accurate hardware simulator
+- [ ] RTL implementation (SystemVerilog)
+- [ ] FPGA validation
+- [ ] ASIC implementation
