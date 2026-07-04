@@ -14,7 +14,7 @@ class ModularArithmetic:
             x mod 65537 = x_low - x_high
         """
 
-        while x < 0 or x > MASK:
+        while x < 0 or x >= MODULUS:
             low = x & MASK
             high = x >> BIT_WIDTH
             x = low - high
@@ -36,7 +36,7 @@ class ModularArithmetic:
 
     @staticmethod
     def multiply(a: int, b: int) -> int:
-        return ModularArithmetic.reduce(a * b)
+        return ModularArithmetic.reduce(int(a) * int(b))
 
     @staticmethod
     def power(base: int, exponent: int) -> int:

@@ -110,9 +110,9 @@ def compare_pipeline_vs_naive(pipeline, A: Polynomial, B: Polynomial):
             success = False
 
     if success:
-        print("✔ PASS: Pipeline matches naive multiplication")
+        print("[PASS] Pipeline matches naive multiplication")
     else:
-        print("✖ FAIL: Mismatch detected")
+        print("[FAIL] Mismatch detected")
 
     return success
 

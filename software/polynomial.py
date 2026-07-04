@@ -7,11 +7,10 @@ class Polynomial:
     def __init__(self, coefficients, rand, degree):
         if not rand:
             # we assume that the input coefficients are already within the fermat modulus ring.
-            self.coefficients = coefficients.copy()
-            self.degree = len(coefficients) - 1
+            self.coefficients = np.asarray(coefficients, dtype=np.int64).ravel()
+            self.degree = len(self.coefficients) - 1
         if rand:
-            # create a degree + 1 size array with 1 columns and (degree + 1) rows
-            self.coefficients = np.random.randint(0, 65537, size=(degree + 1, 1))
+            self.coefficients = np.random.randint(0, 65537, size=degree + 1, dtype=np.int64)
             self.degree = degree
 
     def update_coefficient(self, index, value):
@@ -20,7 +19,7 @@ class Polynomial:
     def __str__(self):
         terms = []
 
-        for power, coeff in enumerate(self.coefficients.flatten()):
+        for power, coeff in enumerate(self.coefficients):
             if coeff == 0:
                 continue
 

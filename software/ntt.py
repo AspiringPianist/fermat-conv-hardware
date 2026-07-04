@@ -5,6 +5,15 @@ from software.polynomial import Polynomial
 from software.stage import Stage
 
 
+def _bit_reverse(coefficients, N):
+    bits = int(log2(N))
+    output = [0] * N
+    for i in range(N):
+        reversed_index = int(format(i, f"0{bits}b")[::-1], 2)
+        output[reversed_index] = int(coefficients[i])
+    return output
+
+
 class NTT:
     """
     Executes both the Forward and Inverse Number Theoretic Transform.
@@ -21,8 +30,7 @@ class NTT:
         self.postprocess_twiddles = twiddle_generator.postprocess
 
     def preprocess(self, polynomial: Polynomial):
-        coeffs = polynomial.coefficients.copy()
-
+        coeffs = polynomial.coefficients.flatten().copy()
         for i in range(self.N):
             coeffs[i] = ModularArithmetic.multiply(
                 coeffs[i],
@@ -36,8 +44,7 @@ class NTT:
         )
 
     def postprocess(self, polynomial: Polynomial):
-        coeffs = polynomial.coefficients.copy()
-
+        coeffs = polynomial.coefficients.flatten().copy()
         for i in range(self.N):
             coeffs[i] = ModularArithmetic.multiply(
                 coeffs[i],
@@ -52,7 +59,7 @@ class NTT:
 
     def forward(self, polynomial: Polynomial):
 
-        coeffs = polynomial.coefficients.copy()
+        coeffs = _bit_reverse(polynomial.coefficients, self.N)
 
         for stage_idx in range(self.num_stages):
             stage = Stage(stage_idx, self.N)
@@ -61,6 +68,8 @@ class NTT:
                 coeffs,
                 self.forward_memory,
             )
+
+        coeffs = _bit_reverse(coeffs, self.N)
 
         return Polynomial(
             coefficients=coeffs,
@@ -72,10 +81,6 @@ class NTT:
 
         coeffs = polynomial.coefficients.copy()
 
-        #
-        # Same stage ordering.
-        # Only the twiddle memory changes.
-        #
         for stage_idx in range(self.num_stages):
             stage = Stage(stage_idx, self.N)
 
@@ -84,9 +89,6 @@ class NTT:
                 self.inverse_memory,
             )
 
-        #
-        # Scale by N^{-1}.
-        #
         inv_N = ModularArithmetic.inverse(self.N)
 
         for i in range(self.N):
