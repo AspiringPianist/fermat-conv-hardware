@@ -121,6 +121,7 @@ Before the transform begins:
 
 * Generate polynomial coefficients
 * Generate or load twiddle factors
+* Perform the PointWise Multiplication of twiddle factor with the polynomial to allow Negacyclic convolution, i.e x^N = -1
 * Arrange twiddle factors in hardware-friendly order (bit-reversed if required)
 
 ---
