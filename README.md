@@ -214,7 +214,7 @@ multiplication by
 
 can be replaced by cyclic shifts instead of modular multiplication.
 
-This optimization is currently being integrated into the butterfly datapath.
+This optimization is integrated into the butterfly datapath for twiddle factors that are powers of two.
 
 ---
 
@@ -284,6 +284,18 @@ Negacyclic Reduction
 
 Both outputs are compared coefficient-by-coefficient to verify correctness.
 
+Run the end-to-end check with:
+
+```bash
+python -m software.tests.pipeline_test
+```
+
+Additional sanity checks were run at small transform sizes (N = 2, 4, 8):
+
+- `INTT(NTT(x)) == x` round-trip identity
+- Full negacyclic preprocess → forward → inverse → postprocess round-trip
+- Pipeline vs naive multiplication (exhaustive at N = 2, random at N = 4 and N = 8)
+
 ---
 
 # Repository Structure
@@ -297,36 +309,39 @@ software/
 ├── polynomial.py
 ├── polynomial_multiplier.py
 ├── stage.py
-└── twiddle.py
-
-tests/
-│
-└── pipeline_test.py
+├── twiddle.py
+└── tests/
+    └── pipeline_test.py
 ```
 
 ---
 
 # Current Status
 
+**Radix-2 architecture verified.** The Python reference model is functionally correct end-to-end against the naive golden reference.
+
+Verified components:
+
 - ✅ Fermat modular arithmetic
-- ✅ Radix-2 butterfly implementation
-- ✅ Stage execution engine
-- ✅ Twiddle generation
-- ✅ Twiddle memory abstraction
-- ✅ Forward NTT
-- ✅ Inverse NTT
+- ✅ Radix-2 butterfly (including power-of-two shift path)
+- ✅ Stage execution engine and twiddle indexing
+- ✅ Twiddle generation and stage-wise twiddle memory
+- ✅ Forward NTT (DIT with bit-reversal bookends)
+- ✅ Inverse NTT (inverse twiddles + N⁻¹ scaling)
+- ✅ Negacyclic preprocess / postprocess
 - ✅ Complete polynomial multiplication pipeline
-- ✅ Naive golden reference
-- ✅ Pipeline verification framework
+- ✅ Pipeline vs naive verification (N = 2, 4, 8)
+
+**Next step:** D1 arithmetic and higher radix (e.g. radix-32 fused stages, mixed-radix decomposition).
 
 ---
 
 # Future Work
 
-- [ ] Power-of-two shift-based butterfly optimization
+- [ ] D1 arithmetic (hardware-aligned datapath)
 - [ ] Radix-32 fused stage implementation
-- [ ] Mixed-radix decomposition
-- [ ] Bit-reversed twiddle storage
+- [ ] Mixed-radix / higher-radix decomposition
+- [ ] Bit-reversed twiddle storage (RTL layout)
 - [ ] Cycle-accurate hardware simulator
 - [ ] RTL implementation (SystemVerilog)
 - [ ] FPGA validation
