@@ -22,6 +22,8 @@ whose special arithmetic properties allow modular reduction using only bit opera
 
 # Current Pipeline
 
+High-level dataflow for negacyclic polynomial multiplication:
+
 ```mermaid
 flowchart LR
 
@@ -43,6 +45,16 @@ H --> I[Postprocess]
 
 I --> J[Output Polynomial]
 ```
+
+---
+
+# System Architecture
+
+Full block diagram of the software reference model, coefficient memory, twiddle ROM, NTT engine internals, and the hardware roadmap (D1 arithmetic, higher radix, RTL bring-up):
+
+![System architecture](docs/figures/architecture.png)
+
+The left panels show the verified radix-2 reference implementation. The right sidebar lists planned hardware optimizations from the project roadmap.
 
 ---
 
@@ -216,6 +228,52 @@ can be replaced by cyclic shifts instead of modular multiplication.
 
 This optimization is integrated into the butterfly datapath for twiddle factors that are powers of two.
 
+### Shift vs full multiply (N = 2 … 8192)
+
+Twiddle operations are classified as **shift** (twiddle is a power of 2), **full multiply** (non-pow2 twiddle), or **trivial** (w = 1).
+
+![Full multiply share vs N](docs/figures/full_mult_comparison.png)
+
+**Butterfly twiddles** (one forward NTT):
+
+![Butterfly twiddle mix](docs/figures/chart_butterfly_twiddles.png)
+
+![Butterfly twiddle table](docs/figures/table_butterfly_twiddles.png)
+
+**Pre/post twiddles** (one pass):
+
+![Pre/post twiddle mix](docs/figures/chart_prepost_twiddles.png)
+
+![Pre/post twiddle table](docs/figures/table_prepost_twiddles.png)
+
+**Full multiply pipeline** (twiddle ops only):
+
+![Pipeline twiddle mix](docs/figures/chart_pipeline_twiddles.png)
+
+![Pipeline twiddle table](docs/figures/table_pipeline_twiddles.png)
+
+**All operations** (twiddles + pointwise + N⁻¹ scale):
+
+![All operations table](docs/figures/table_all_operations.png)
+
+Key trends at **q = 65537**:
+
+- **N ≤ 32:** butterfly twiddles use zero full multipliers; only shift/trivial paths.
+- **N ≥ 1024:** butterfly full-mult share crosses ~40%; pre/post twiddles are ~99% full mult.
+- **Full pipeline at N = 8192:** ~27% shift / ~60% full twiddle ops; ~63% full mult including pointwise and inverse scaling.
+
+Regenerate all figures:
+
+```bash
+python -m software.tests.export_figures
+```
+
+Print twiddle statistics to the terminal:
+
+```bash
+python -m software.tests.twiddle_stats
+```
+
 ---
 
 # Negacyclic Convolution
@@ -311,7 +369,21 @@ software/
 ├── stage.py
 ├── twiddle.py
 └── tests/
-    └── pipeline_test.py
+    ├── pipeline_test.py
+    ├── twiddle_stats.py
+    └── export_figures.py
+
+docs/
+└── figures/
+    ├── architecture.png
+    ├── full_mult_comparison.png
+    ├── chart_butterfly_twiddles.png
+    ├── chart_prepost_twiddles.png
+    ├── chart_pipeline_twiddles.png
+    ├── table_butterfly_twiddles.png
+    ├── table_prepost_twiddles.png
+    ├── table_pipeline_twiddles.png
+    └── table_all_operations.png
 ```
 
 ---

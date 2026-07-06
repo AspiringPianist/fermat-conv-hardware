@@ -118,7 +118,7 @@ def compare_pipeline_vs_naive(pipeline, A: Polynomial, B: Polynomial):
 
 
 if __name__ == "__main__":
-    N = 8
+    N = 512
 
     poly_a = Polynomial(
         coefficients=None,

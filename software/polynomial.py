@@ -10,7 +10,9 @@ class Polynomial:
             self.coefficients = np.asarray(coefficients, dtype=np.int64).ravel()
             self.degree = len(self.coefficients) - 1
         if rand:
-            self.coefficients = np.random.randint(0, 65537, size=degree + 1, dtype=np.int64)
+            self.coefficients = np.random.randint(
+                0, 65537, size=degree + 1, dtype=np.int64
+            )
             self.degree = degree
 
     def update_coefficient(self, index, value):

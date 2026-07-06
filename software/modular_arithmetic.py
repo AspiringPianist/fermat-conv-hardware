@@ -36,7 +36,7 @@ class ModularArithmetic:
 
     @staticmethod
     def multiply(a: int, b: int) -> int:
-        return ModularArithmetic.reduce(int(a) * int(b))
+        return ModularArithmetic.reduce(a * b)
 
     @staticmethod
     def power(base: int, exponent: int) -> int:
